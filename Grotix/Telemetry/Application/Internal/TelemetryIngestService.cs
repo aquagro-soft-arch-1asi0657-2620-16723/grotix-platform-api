@@ -5,6 +5,7 @@ using GrotixBackend.Telemetry.Domain.Model.Entities;
 using GrotixBackend.Telemetry.Domain.Model.ValueObjects;
 using GrotixBackend.Telemetry.Domain.Repositories;
 using GrotixBackend.Telemetry.Domain.Services;
+using Microsoft.Extensions.Options;
 
 namespace GrotixBackend.Telemetry.Application.Internal;
 
@@ -12,18 +13,21 @@ public sealed class TelemetryIngestService(
     ISensorRepository sensorRepository,
     ISensorReadingRepository sensorReadingRepository,
     IAlertEvaluationService alertEvaluationService,
-    IDeviceHeartbeatPublisher deviceHeartbeatPublisher) : ITelemetryIngestService
+    IDeviceHeartbeatPublisher deviceHeartbeatPublisher,
+    IOptions<SensorCalibrationOptions>? calibrationOptions = null) : ITelemetryIngestService
 {
+    private readonly SensorCalibrationOptions _calibrationOptions = calibrationOptions?.Value ?? new();
+
     public async Task IngestAsync(TelemetryReceivedIntegrationEvent evt, CancellationToken cancellationToken = default)
     {
         var reading = new SensorReading
         {
             DeviceId = evt.DeviceId,
             ZoneId = evt.ZoneId,
-            Temperature = NormalizeValue(SensorTypes.AirTemperature, evt.Temperature),
-            HumidityAir = NormalizeValue(SensorTypes.AirHumidity, evt.HumidityAir),
-            HumiditySoil = NormalizeValue(SensorTypes.SoilMoisture, evt.HumiditySoil),
-            LightIntensity = NormalizeValue(SensorTypes.LightIntensity, evt.LightIntensity),
+            Temperature = NormalizeAndCalibrate(SensorTypes.AirTemperature, evt.Temperature, evt.DeviceId),
+            HumidityAir = NormalizeAndCalibrate(SensorTypes.AirHumidity, evt.HumidityAir, evt.DeviceId),
+            HumiditySoil = NormalizeAndCalibrate(SensorTypes.SoilMoisture, evt.HumiditySoil, evt.DeviceId),
+            LightIntensity = NormalizeAndCalibrate(SensorTypes.LightIntensity, evt.LightIntensity, evt.DeviceId),
             Timestamp = evt.Timestamp.ToUniversalTime()
         };
 
@@ -40,8 +44,21 @@ public sealed class TelemetryIngestService(
         deviceHeartbeatPublisher.Publish(new DeviceHeartbeatIntegrationEvent(evt.DeviceId, reading.Timestamp));
     }
 
-    private static double NormalizeValue(string sensorType, double value) =>
-        SensorMeasurementNormalizer.Normalize(sensorType, value);
+    private double NormalizeAndCalibrate(string sensorType, double value, int deviceId)
+    {
+        var normalizedType = SensorTypes.Normalize(sensorType);
+        var normalizedValue = SensorMeasurementNormalizer.Normalize(normalizedType, value);
+        var calibration = _calibrationOptions.Sensors.FirstOrDefault(point =>
+            point.DeviceId == deviceId
+            && SensorTypes.Normalize(point.SensorType) == normalizedType);
+
+        return calibration is null
+            ? normalizedValue
+            : SensorReadingCalibration.ApplyOffset(
+                normalizedValue,
+                calibration.ObservedReferenceValue,
+                calibration.ReferenceValue);
+    }
 
     private static double? ResolveFieldForSensor(string sensorType, SensorReading reading) =>
         SensorTypes.Normalize(sensorType) switch
