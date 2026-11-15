@@ -1,0 +1,43 @@
+using GrotixBackend.Profiles.Domain.Model.Aggregates;
+using GrotixBackend.Profiles.Domain.Repositories;
+using GrotixBackend.Shared.Infrastructure.Persistence.EFC.Configuration;
+using GrotixBackend.Shared.Infrastructure.Persistence.EFC.Repositories;
+using Microsoft.EntityFrameworkCore;
+
+namespace GrotixBackend.Profiles.Infrastructure.Repositories;
+
+public sealed class AssociationInviteRepository(ProfilesDbContext context)
+    : BaseRepository<AssociationInvite>(context), IAssociationInviteRepository
+{
+    public async Task<AssociationInvite?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
+    {
+        var normalized = tokenHash.Trim();
+        return await Context.Set<AssociationInvite>()
+            .FirstOrDefaultAsync(i => i.TokenHash == normalized, cancellationToken);
+    }
+
+    public Task<bool> HasPendingInviteForEmailAsync(
+        int associationId,
+        string normalizedEmail,
+        CancellationToken cancellationToken = default) =>
+        Context.Set<AssociationInvite>().AnyAsync(
+            i => i.AssociationId == associationId && i.InviteEmail == normalizedEmail && i.UsedAt == null,
+            cancellationToken);
+
+    public Task<AssociationInvite?> GetPendingInviteForEmailAsync(
+        int associationId,
+        string normalizedEmail,
+        CancellationToken cancellationToken = default) =>
+        Context.Set<AssociationInvite>()
+            .FirstOrDefaultAsync(
+                i => i.AssociationId == associationId && i.InviteEmail == normalizedEmail && i.UsedAt == null,
+                cancellationToken);
+
+    public async Task<bool> TryMarkUsedAsync(int inviteId, CancellationToken cancellationToken = default)
+    {
+        var rows = await Context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE association_invite SET UsedAt = UTC_TIMESTAMP(6) WHERE InviteID = {inviteId} AND UsedAt IS NULL",
+            cancellationToken);
+        return rows == 1;
+    }
+}

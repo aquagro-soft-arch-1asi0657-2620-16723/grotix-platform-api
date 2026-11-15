@@ -1,0 +1,215 @@
+using GrotixBackend.Contracts.Auth.Claims;
+using GrotixBackend.Contracts.Profiles.Access;
+using GrotixBackend.CultivationArea.Application.Internal.CommandServices;
+using GrotixBackend.CultivationArea.Application.Internal.QueryServices;
+using GrotixBackend.CultivationArea.Domain.Model.Aggregates;
+using GrotixBackend.CultivationArea.Domain.Model.Commands;
+using GrotixBackend.CultivationArea.Domain.Model.Queries;
+using GrotixBackend.CultivationArea.Domain.Repositories;
+using GrotixBackend.CultivationArea.Interfaces.REST.Transform;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace GrotixBackend.CultivationArea.Interfaces.REST.Controllers;
+
+[ApiController]
+[Route("api/v1/farms")]
+[Authorize]
+public class FarmsController(
+    IUserAccessContextService userAccessContextService,
+    IFarmCommandService farmCommandService,
+    IFarmQueryService farmQueryService,
+    IAssociationFarmOwnerSyncService associationFarmOwnerSyncService,
+    IZoneCommandService zoneCommandService,
+    IZoneQueryService zoneQueryService,
+    IZoneMemberRepository zoneMemberRepository) : ControllerBase
+{
+    [HttpGet]
+    public async Task<IActionResult> ListMine()
+    {
+        var accessContext = await ResolveAccessContextAsync();
+        if (accessContext == null) return Unauthorized();
+
+        IReadOnlyList<Farm> farms;
+        if (User.IsInRole("admin") || User.IsInRole("staff"))
+        {
+            farms = await farmQueryService.Handle(new ListAllFarmsQuery());
+        }
+        else if (User.IsInRole("user_admin") && accessContext.AssociationId is { } adminAssociationId)
+        {
+            farms = await farmQueryService.Handle(new ListFarmsForAssociationQuery(adminAssociationId));
+        }
+        else
+        {
+            var farmIds = await zoneMemberRepository.ListFarmIdsForUserAsync(accessContext.UserId);
+            if (farmIds.Count == 0)
+            {
+                farms = [];
+            }
+            else
+            {
+                var allAssigned = new List<Farm>();
+                foreach (var farmId in farmIds)
+                {
+                    var farm = await farmQueryService.Handle(new GetFarmByIdQuery(farmId));
+                    if (farm != null)
+                        allAssigned.Add(farm);
+                }
+
+                farms = allAssigned;
+            }
+        }
+
+        return Ok(farms.Select(CultivationAreaResourceAssembler.ToFarmResource).ToList());
+    }
+
+    public record CreateFarmRequest(string Name, string Location, int? AssociationId);
+
+    [HttpPost]
+    [Authorize(Roles = "admin,staff,user_admin")]
+    public async Task<IActionResult> Create([FromBody] CreateFarmRequest request)
+    {
+        var accessContext = await ResolveAccessContextAsync();
+        if (accessContext == null) return Unauthorized();
+
+        try
+        {
+            var associationId = ResolveAssociationIdForCreate(accessContext, request.AssociationId);
+            if (associationId == null)
+                return BadRequest(new { message = "AssociationId es requerido o el usuario no pertenece a esa asociación." });
+
+            await associationFarmOwnerSyncService.SyncUnownedFarmsAsync(associationId.Value);
+
+            var farm = await farmCommandService.Handle(new CreateFarmCommand(
+                associationId.Value,
+                request.Name,
+                request.Location));
+
+            return CreatedAtAction(nameof(GetById), new { farmId = farm.Id }, CultivationAreaResourceAssembler.ToFarmResource(farm));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{farmId:int}")]
+    public async Task<IActionResult> GetById(int farmId)
+    {
+        var farm = await farmQueryService.Handle(new GetFarmByIdQuery(farmId));
+        if (farm == null) return NotFound();
+        if (!await CanAccessFarmAsync(farm)) return Forbid();
+        return Ok(CultivationAreaResourceAssembler.ToFarmResource(farm));
+    }
+
+    public record PatchFarmRequest(string Name, string Location);
+
+    [HttpPatch("{farmId:int}")]
+    public async Task<IActionResult> Patch(int farmId, [FromBody] PatchFarmRequest request)
+    {
+        var farm = await farmQueryService.Handle(new GetFarmByIdQuery(farmId));
+        if (farm == null) return NotFound();
+        if (!await CanAccessFarmAsync(farm)) return Forbid();
+        var updated = await farmCommandService.Handle(new UpdateFarmCommand(farmId, request.Name, request.Location));
+        return Ok(CultivationAreaResourceAssembler.ToFarmResource(updated));
+    }
+
+    [HttpGet("{farmId:int}/zones")]
+    public async Task<IActionResult> ListZones(int farmId)
+    {
+        var farm = await farmQueryService.Handle(new GetFarmByIdQuery(farmId));
+        if (farm == null) return NotFound();
+        if (!await CanAccessFarmAsync(farm)) return Forbid();
+        var zones = await zoneQueryService.Handle(new ListZonesForFarmQuery(farmId));
+
+        if (User.IsInRole("admin") || User.IsInRole("staff"))
+            return Ok(zones.Select(CultivationAreaResourceAssembler.ToZoneResource).ToList());
+
+        var accessContext = await ResolveAccessContextAsync();
+        if (accessContext == null) return Unauthorized();
+
+        var isOrgAdmin = User.IsInRole("user_admin") &&
+                         accessContext.AssociationId == farm.AssociationId;
+        if (isOrgAdmin)
+            return Ok(zones.Select(CultivationAreaResourceAssembler.ToZoneResource).ToList());
+
+        var allowedZoneIds = await zoneMemberRepository.ListAssignedZoneIdsForFarmAsync(farmId, accessContext.UserId);
+        var visible = zones.Where(z => allowedZoneIds.Contains(z.Id)).ToList();
+        return Ok(visible.Select(CultivationAreaResourceAssembler.ToZoneResource).ToList());
+    }
+
+    public record CreateZoneRequest(
+        string Name,
+        int CropId,
+        double Latitude,
+        double Longitude,
+        string? CurrentPhase,
+        DateTime? PhaseStartDate,
+        string? ImageUrl,
+        string? IrrigationMode);
+
+    [HttpPost("{farmId:int}/zones")]
+    public async Task<IActionResult> CreateZone(int farmId, [FromBody] CreateZoneRequest request)
+    {
+        var farm = await farmQueryService.Handle(new GetFarmByIdQuery(farmId));
+        if (farm == null) return NotFound();
+        if (!await CanAccessFarmAsync(farm)) return Forbid();
+        try
+        {
+            var zone = await zoneCommandService.Handle(new CreateZoneCommand(
+                farmId,
+                request.CropId,
+                request.Name,
+                request.Latitude,
+                request.Longitude,
+                request.CurrentPhase,
+                request.PhaseStartDate,
+                request.ImageUrl,
+                request.IrrigationMode));
+            return Created($"/api/v1/zones/{zone.Id}", CultivationAreaResourceAssembler.ToZoneResource(zone));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private async Task<UserAccessContext?> ResolveAccessContextAsync()
+    {
+        var identityId = User.GetIdentityId();
+        if (identityId == null) return null;
+        return await userAccessContextService.GetByIdentityIdAsync(identityId.Value);
+    }
+
+    private int? ResolveAssociationIdForCreate(UserAccessContext accessContext, int? requestedAssociationId)
+    {
+        if (User.IsInRole("admin") || User.IsInRole("staff"))
+            return requestedAssociationId;
+
+        if (accessContext.AssociationId == null)
+            return null;
+
+        if (requestedAssociationId.HasValue && requestedAssociationId.Value != accessContext.AssociationId.Value)
+            return null;
+
+        return accessContext.AssociationId.Value;
+    }
+
+    private async Task<bool> CanAccessFarmAsync(Farm farm)
+    {
+        if (User.IsInRole("admin") || User.IsInRole("staff")) return true;
+
+        var accessContext = await ResolveAccessContextAsync();
+        if (accessContext == null) return false;
+
+        if (accessContext.AssociationId.HasValue && farm.AssociationId == accessContext.AssociationId.Value)
+        {
+            if (User.IsInRole("user_admin"))
+                return true;
+
+            return await zoneMemberRepository.ListAssignedZoneIdsForFarmAsync(farm.Id, accessContext.UserId) is { Count: > 0 };
+        }
+
+        return farm.UserId.HasValue && accessContext.UserId == farm.UserId.Value;
+    }
+}
