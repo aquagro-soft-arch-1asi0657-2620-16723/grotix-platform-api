@@ -13,7 +13,7 @@ public sealed class HardwareDeviceDbContextFactory : IDesignTimeDbContextFactory
         DotEnvBootstrap.LoadFromCurrentDirectory();
 
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-            ?? "Server=127.0.0.1;Port=3306;Database=grotix_core;Uid=root;Pwd=root;";
+            ?? throw new InvalidOperationException("Configure the database connection string in environment variables.");
 
         var optionsBuilder = new DbContextOptionsBuilder<HardwareDeviceDbContext>();
         optionsBuilder.UseMySql(

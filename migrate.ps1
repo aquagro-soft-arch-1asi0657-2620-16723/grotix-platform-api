@@ -1,99 +1,43 @@
-	# ============================================================
-# Grotix — Aplicar todas las migraciones
-# Uso: .\migrate.ps1
-# ============================================================
+# Grotix: Database migration runner (no embedded credentials).
+# For both MySQL and TimescaleDB set the connection strings in the process environment.
+# Required: dotnet tool install --global dotnet-ef --version 9.*
+# Usage: .\migrate.ps1 -ListOnly  |  .\migrate.ps1 -Apply
+[CmdletBinding()]
+param(
+    [switch]$ListOnly,
+    [switch]$Apply
+)
+$ErrorActionPreference = 'Stop'
 
-$ErrorActionPreference = "Stop"
-$failed = $false
-
-function Run-Migration {
-    param(
-        [string]$Label,
-        [string]$Context,
-        [string]$Project,
-        [string]$StartupProject
-    )
-
-    Write-Host ""
-    Write-Host "[$Label]" -ForegroundColor Cyan
-
-    # 1. Forzamos las variables de entorno en la sesión actual
-    $env:TokenSettings__Secret="EstaEsUnaClaveSuperSecretaParaGrotix2024"
-    $env:ConnectionStrings__DefaultConnection="Server=127.0.0.1;Port=3306;Database=grotix_core;Uid=root;Pwd=root;"
-    $env:ConnectionStrings__TelemetryTimescale="Host=localhost;Port=5432;Database=grotix_telemetry;Username=postgres;Password=Grotix2026!;"
-
-    # 2. Elegimos la cadena de conexión según el Label
-    $selectedConn = "Server=127.0.0.1;Port=3306;Database=grotix_core;Uid=root;Pwd=root;"
-    if ($Label -like "*Telemetry*") {
-        $selectedConn = "Host=localhost;Port=5432;Database=grotix_telemetry;Username=postgres;Password=Grotix2026!;"
-    }
-
-    # 3. Armamos los argumentos
-    $cmdArgs = @(
-        "ef", "database", "update",
-        "--context", $Context,
-        "--project", $Project,
-        "--connection", $selectedConn
-    )
-
-    if ($StartupProject) {
-        $cmdArgs += "--startup-project"
-        $cmdArgs += $StartupProject
-    }
-
-    # 4. Ejecutamos
-    & dotnet @cmdArgs
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  FALLO: $Label" -ForegroundColor Red
-        $script:failed = $true
-    } else {
-        Write-Host "  OK: $Label" -ForegroundColor Green
-    }
+if ($ListOnly.IsPresent -eq $Apply.IsPresent) {
+    throw 'Select exactly one mode: -ListOnly or -Apply. The script never migrates by default.'
+}
+if ([string]::IsNullOrWhiteSpace($env:ConnectionStrings__DefaultConnection)) {
+    throw 'Provide ConnectionStrings__DefaultConnection in your shell environment.'
+}
+if ([string]::IsNullOrWhiteSpace($env:ConnectionStrings__TelemetryTimescale)) {
+    throw 'Provide ConnectionStrings__TelemetryTimescale in your shell environment.'
 }
 
-Run-Migration `
-    -Label "1/6 Profiles" `
-    -Context "ProfilesDbContext" `
-    -Project "src/Profiles.Api/Profiles.Api.csproj"
-
-if ($failed) { exit 1 }
-
-Run-Migration `
-    -Label "2/6 IAM" `
-    -Context "IamDbContext" `
-    -Project "src/Profiles.Api/Profiles.Api.csproj"
-
-if ($failed) { exit 1 }
-
-Run-Migration `
-    -Label "3/6 CultivationArea" `
-    -Context "CultivationAreaDbContext" `
-    -Project "src/Profiles.Api/Profiles.Api.csproj"
-
-if ($failed) { exit 1 }
-
-Run-Migration `
-    -Label "4/6 HardwareDevice" `
-    -Context "HardwareDeviceDbContext" `
-    -Project "src/Grotix.Persistence.HardwareDevice/Grotix.Persistence.HardwareDevice.csproj"
-
-if ($failed) { exit 1 }
-
-Run-Migration `
-    -Label "5/6 IrrigationCycle" `
-    -Context "IrrigationCycleDbContext" `
-    -Project "src/Grotix.Persistence.IrrigationCycle/Grotix.Persistence.IrrigationCycle.csproj"
-
-if ($failed) { exit 1 }
-
-Run-Migration `
-    -Label "6/6 Telemetry" `
-    -Context "TelemetryDbContext" `
-    -Project "src/Grotix.Persistence.Telemetry/Grotix.Persistence.Telemetry.csproj" `
-    -StartupProject "src/Telemetry.Api/Telemetry.Api.csproj"
-
-if ($failed) { exit 1 }
-
-Write-Host ""
-Write-Host "Todas las migraciones aplicadas correctamente." -ForegroundColor Green
+$contexts = @(
+    @{ Context='ProfilesDbContext'; Project='src/Grotix.Persistence/Grotix.Persistence.csproj'; Startup='src/Profiles.Api/Profiles.Api.csproj' },
+    @{ Context='IamDbContext'; Project='src/Grotix.Persistence/Grotix.Persistence.csproj'; Startup='src/Profiles.Api/Profiles.Api.csproj' },
+    @{ Context='CultivationAreaDbContext'; Project='src/Grotix.Persistence/Grotix.Persistence.csproj'; Startup='src/CultivationArea.Api/CultivationArea.Api.csproj' },
+    @{ Context='HardwareDeviceDbContext'; Project='src/Grotix.Persistence.HardwareDevice/Grotix.Persistence.HardwareDevice.csproj'; Startup='src/HardwareDevice.Api/HardwareDevice.Api.csproj' },
+    @{ Context='IrrigationCycleDbContext'; Project='src/Grotix.Persistence.IrrigationCycle/Grotix.Persistence.IrrigationCycle.csproj'; Startup='src/IrrigationCycle.Api/IrrigationCycle.Api.csproj' },
+    @{ Context='TelemetryDbContext'; Project='src/Grotix.Persistence.Telemetry/Grotix.Persistence.Telemetry.csproj'; Startup='src/Telemetry.Api/Telemetry.Api.csproj' }
+)
+$command = if ($ListOnly) { 'migrations' } else { 'database' }
+$action = if ($ListOnly) { 'list' } else { 'update' }
+foreach ($item in $contexts) {
+    Write-Host "[$($item.Context)] $command $action" -ForegroundColor Cyan
+    $args = @('ef', $command, $action,
+        '--context', $item.Context,
+        '--project', $item.Project,
+        '--startup-project', $item.Startup)
+    & dotnet @args
+    if ($LASTEXITCODE -ne 0) {
+        throw "EF command failed for $($item.Context), exit code $LASTEXITCODE"
+    }
+}
+Write-Host 'Commands finished. Inspect actual database schemas and logs.' -ForegroundColor Green

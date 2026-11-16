@@ -1,65 +1,43 @@
-# MySQL + PostgreSQL (Timescale) para desarrollo local.
-# Credenciales alineadas con .env y migrate.ps1
-#
-# Levantar:
-#   docker compose -f docker-compose.databases.yml up -d
-#
-# Migraciones:
-#   .\migrate.ps1
-#
-# Parar (conserva datos en volúmenes):
-#   docker compose -f docker-compose.databases.yml down
-#
-# Parar y borrar datos:
-#   docker compose -f docker-compose.databases.yml down -v
-
-# Si ya tienes grotix-mysql (3306) y grotix-telemetry (5432) corriendo con las
-# mismas credenciales, no hace falta levantar esto de nuevo — usa .\migrate.ps1.
-
-name: grotix-databases
-
+# SOLO ENTORNO LOCAL / QA. No publicar puertos de BD en Internet.
+# Para combinar: docker compose -f docker-compose.yml -f docker-compose.databases.yml up -d
+# En ese caso configurar MYSQL_HOST=mysql, POSTGRES_HOST=postgres y SSL Mode=Disabled en .env.
 services:
   mysql:
     image: mysql:8.0
-    container_name: grotix-mysql
-    ports:
-      - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: "${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}"
-      MYSQL_DATABASE: grotix_core
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DB:-grotix_core}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      - --default-authentication-plugin=caching_sha2_password
-    volumes:
-      - grotix_mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-    restart: unless-stopped
-
-  postgres:
-    image: timescale/timescaledb:latest-pg16
-    container_name: grotix-postgres
     ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
-      POSTGRES_DB: grotix_telemetry
+      - "127.0.0.1:3306:3306"
     volumes:
-      - grotix_postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d grotix_telemetry"]
-      interval: 5s
+      test: ["CMD-SHELL", "mysqladmin ping --silent -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\""]
+      interval: 10s
       timeout: 5s
       retries: 20
-      start_period: 15s
     restart: unless-stopped
-
+  postgres:
+    image: timescale/timescaledb:2.32.0-pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-grotix_telemetry}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
 volumes:
-  grotix_mysql_data:
-  grotix_postgres_data:
+  mysql_data:
+  postgres_data:

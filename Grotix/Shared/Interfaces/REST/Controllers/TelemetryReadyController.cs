@@ -26,9 +26,7 @@ public sealed class TelemetryReadyController(HealthCheckService healthChecks) : 
             checks = report.Entries.Select(e => new
             {
                 name = e.Key,
-                status = e.Value.Status.ToString(),
-                description = e.Value.Description,
-                exception = e.Value.Exception?.Message
+                status = e.Value.Status.ToString()
             })
         };
 

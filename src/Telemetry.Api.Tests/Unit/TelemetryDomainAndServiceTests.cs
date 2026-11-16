@@ -106,13 +106,7 @@ public class TelemetryDomainAndServiceTests
         mockSensorRepo.Setup(r => r.ListByZoneAsync(It.IsAny<int>(), default))
                       .ReturnsAsync(new List<Sensor>());
 
-        var mockHeartbeatPublisher = new Mock<IDeviceHeartbeatPublisher>();
-
-        var service = new TelemetryIngestService(
-            mockSensorRepo.Object,
-            mockReadingRepo.Object,
-            mockAlertService.Object,
-            mockHeartbeatPublisher.Object);
+        var service = new TelemetryIngestService(mockSensorRepo.Object, mockReadingRepo.Object, mockAlertService.Object);
         var integrationEvent = new TelemetryReceivedIntegrationEvent(1, 2, 25.5, 60.0, 45.0, 1000, DateTime.UtcNow);
 
         // Act

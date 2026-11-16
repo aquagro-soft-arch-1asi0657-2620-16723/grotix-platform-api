@@ -1,11 +1,11 @@
 # Build context: Grotix_Web_Services/
 # docker build -f src/HardwareDevice.Api/Dockerfile -t grotix-hardware-api .
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["src/HardwareDevice.Api/HardwareDevice.Api.csproj",                                "src/HardwareDevice.Api/"]
@@ -22,6 +22,8 @@ COPY ["src/Grotix.Telemetry/Grotix.Telemetry.csproj",                           
 COPY ["src/Grotix.Contracts.Auth/Grotix.Contracts.Auth.csproj",                           "src/Grotix.Contracts.Auth/"]
 COPY ["src/Grotix.Contracts.Profiles/Grotix.Contracts.Profiles.csproj",                   "src/Grotix.Contracts.Profiles/"]
 
+COPY ["src/Grotix.Contracts.Integration/Grotix.Contracts.Integration.csproj", "src/Grotix.Contracts.Integration/"]
+
 RUN dotnet restore "src/HardwareDevice.Api/HardwareDevice.Api.csproj"
 
 COPY . .
@@ -31,5 +33,6 @@ RUN dotnet publish "src/HardwareDevice.Api/HardwareDevice.Api.csproj" \
 
 FROM base AS final
 WORKDIR /app
+USER $APP_UID
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "HardwareDevice.Api.dll"]

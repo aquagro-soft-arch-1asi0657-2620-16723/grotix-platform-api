@@ -1,11 +1,11 @@
 # Build context: Grotix_Web_Services/
 # docker build -f src/IrrigationCycle.Api/Dockerfile -t grotix-irrigation-api .
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["src/IrrigationCycle.Api/IrrigationCycle.Api.csproj",                                    "src/IrrigationCycle.Api/"]
@@ -20,6 +20,12 @@ COPY ["src/Grotix.Persistence.IrrigationCycle/Grotix.Persistence.IrrigationCycle
 COPY ["src/Grotix.Contracts.Auth/Grotix.Contracts.Auth.csproj",                                 "src/Grotix.Contracts.Auth/"]
 COPY ["src/Grotix.Contracts.Profiles/Grotix.Contracts.Profiles.csproj",                         "src/Grotix.Contracts.Profiles/"]
 
+COPY ["src/Grotix.Contracts.Integration/Grotix.Contracts.Integration.csproj", "src/Grotix.Contracts.Integration/"]
+COPY ["src/Grotix.HardwareDevice/Grotix.HardwareDevice.csproj", "src/Grotix.HardwareDevice/"]
+COPY ["src/Grotix.Persistence.HardwareDevice/Grotix.Persistence.HardwareDevice.csproj", "src/Grotix.Persistence.HardwareDevice/"]
+COPY ["src/Grotix.Persistence.Telemetry/Grotix.Persistence.Telemetry.csproj", "src/Grotix.Persistence.Telemetry/"]
+COPY ["src/Grotix.Telemetry/Grotix.Telemetry.csproj", "src/Grotix.Telemetry/"]
+
 RUN dotnet restore "src/IrrigationCycle.Api/IrrigationCycle.Api.csproj"
 
 COPY . .
@@ -29,5 +35,6 @@ RUN dotnet publish "src/IrrigationCycle.Api/IrrigationCycle.Api.csproj" \
 
 FROM base AS final
 WORKDIR /app
+USER $APP_UID
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "IrrigationCycle.Api.dll"]

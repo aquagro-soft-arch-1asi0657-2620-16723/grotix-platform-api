@@ -43,9 +43,12 @@ builder.Services
     });
 
 builder.Services.AddEndpointsApiExplorer();
+// CORS solo para los orígenes del frontend configurados (CORS__ALLOWED_ORIGIN en compose).
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
-    options.AddPolicy("AllowAllPolicy", policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+    options.AddPolicy("ConfiguredOrigins", policy =>
+        policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader()));
 
 builder.Services.AddSwaggerGen(options =>
 {
@@ -72,7 +75,7 @@ if (enableSwagger)
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAllPolicy");
+app.UseCors("ConfiguredOrigins");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

@@ -1,4 +1,4 @@
-﻿using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Claims;
 using System.Text;
 using GrotixBackend.Contracts.Auth.Claims;
@@ -90,13 +90,14 @@ public class TokenService(IOptions<TokenSettings> tokenSettings) : ITokenService
                 ClockSkew = TimeSpan.Zero
             });
 
-            var jwtToken = (JsonWebToken)tokenValidationResult.SecurityToken;
+            if (!tokenValidationResult.IsValid || tokenValidationResult.SecurityToken is not JsonWebToken jwtToken)
+                return null;
             var userId = int.Parse(jwtToken.Claims.First(claim => claim.Type == JwtClaimTypes.IdentityId).Value);
             return userId;
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Console.WriteLine(e);
+            // Invalid tokens must not expose exception details or token contents to logs.
             return null;
         }
     }

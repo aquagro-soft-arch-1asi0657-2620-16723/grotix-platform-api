@@ -31,8 +31,7 @@ public sealed class ReadyController(HealthCheckService healthChecks) : Controlle
             checks = report.Entries.Select(e => new
             {
                 name = e.Key,
-                status = e.Value.Status.ToString(),
-                description = e.Value.Description
+                status = e.Value.Status.ToString()
             })
         };
 

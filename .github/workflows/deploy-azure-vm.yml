@@ -1,0 +1,42 @@
+name: Deploy to Azure VM (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'GHCR release tag to deploy (vX.Y.Z)'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  deploy:
+    name: Deploy approved release over SSH
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Validate tag and configure SSH
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          SSH_KEY: ${{ secrets.AZURE_VM_SSH_KEY }}
+          SSH_HOST_KEYS: ${{ secrets.AZURE_VM_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-][0-9A-Za-z.-]+)?$ ]] || exit 1
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_HOST_KEYS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+      - name: Pull and restart backend on Azure VM
+        shell: bash
+        env:
+          VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+          VM_USER: ${{ secrets.AZURE_VM_USER }}
+          VM_PATH: ${{ secrets.AZURE_VM_REPO_PATH }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          printf -v cmd 'cd %q && IMAGE_PREFIX=%q IMAGE_TAG=%q docker compose --profile public pull && IMAGE_PREFIX=%q IMAGE_TAG=%q docker compose --profile public up -d --no-build && IMAGE_PREFIX=%q IMAGE_TAG=%q docker compose ps && for attempt in 1 2 3 4 5 6 7 8 9 10; do curl --fail --silent --show-error http://127.0.0.1:5100/live >/dev/null && curl --fail --silent --show-error http://127.0.0.1:5100/ready/core >/dev/null && curl --fail --silent --show-error http://127.0.0.1:5100/ready/telemetry >/dev/null && exit 0; sleep 3; done; exit 1' \
+            "$VM_PATH" "ghcr.io/$owner/grotix-" "$IMAGE_TAG" "ghcr.io/$owner/grotix-" "$IMAGE_TAG" "ghcr.io/$owner/grotix-" "$IMAGE_TAG"
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$VM_USER@$VM_HOST" "$cmd"

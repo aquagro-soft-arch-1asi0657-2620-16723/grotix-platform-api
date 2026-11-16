@@ -487,3 +487,12 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Deployment output and operator-local material
+.env.*.local
+*.pem
+*.key
+*.pfx
+*.p12
+*.pubxml
+*.zip

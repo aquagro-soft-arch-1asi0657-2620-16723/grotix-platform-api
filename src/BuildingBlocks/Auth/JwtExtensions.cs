@@ -10,8 +10,11 @@ public static class JwtExtensions
 {
     public static IServiceCollection AddGrotixJwt(this IServiceCollection services, IConfiguration configuration)
     {
-        var secret = configuration["TokenSettings:Secret"]
-                     ?? throw new InvalidOperationException("TokenSettings:Secret no configurado.");
+        var secret = configuration["TokenSettings:Secret"];
+        if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32 || secret.Contains("REPLACE_ME", StringComparison.OrdinalIgnoreCase) ||
+            secret.Contains("EstaEsUnaClaveSuperSecreta", StringComparison.OrdinalIgnoreCase) || secret.Any(c => c > 127))
+            throw new InvalidOperationException(
+                "TokenSettings:Secret debe configurarse con al menos 32 caracteres ASCII seguros.");
 
         services.AddAuthentication(options =>
             {

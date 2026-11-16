@@ -65,9 +65,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHealthChecks()
     .AddCheck<TimescaleTelemetryHealthCheck>("timescale", tags: ["timescale"]);
 
+// CORS solo para los orígenes del frontend configurados (CORS__ALLOWED_ORIGIN en compose).
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
-    options.AddPolicy("AllowAllPolicy", policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+    options.AddPolicy("ConfiguredOrigins", policy =>
+        policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader()));
 
 builder.Services.AddSwaggerGen(options =>
 {
@@ -86,6 +89,13 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+var bootstrapAdminEmail = app.Configuration["BootstrapAdmin:Email"];
+var bootstrapAdminPassword = app.Configuration["BootstrapAdmin:Password"];
+if (!string.IsNullOrWhiteSpace(bootstrapAdminEmail) &&
+    string.IsNullOrWhiteSpace(bootstrapAdminPassword))
+    throw new InvalidOperationException(
+        "Configure BootstrapAdmin:Password when BootstrapAdmin:Email is supplied.");
+
 try
 {
     using var scope = app.Services.CreateScope();
@@ -96,12 +106,14 @@ try
     var aclService = scope.ServiceProvider.GetRequiredService<IExternalProfileService>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
-    const string adminEmail = "admin@grotix.com";
+    // Bootstrap explícito: NUNCA provisionar un administrador con credenciales fijas.
+    var adminEmail = bootstrapAdminEmail;
+    var adminPassword = bootstrapAdminPassword;
     const int adminRoleId = 1;
 
-    if (await identityRepository.GetByEmailAsync(adminEmail) == null)
+    if (!string.IsNullOrWhiteSpace(adminEmail) && !string.IsNullOrWhiteSpace(adminPassword) &&
+        await identityRepository.GetByEmailAsync(adminEmail) == null)
     {
-        const string adminPassword = "Admin123$";
         Identity.VerifyPasswordStrength(adminPassword);
         var hash = passwordHasher.Hash(adminPassword);
         var adminIdentity = new Identity(adminEmail, PasswordHash.FromHash(hash));
@@ -115,8 +127,10 @@ try
             adminRoleId));
     }
 
-    var existingAdminIdentity = await identityRepository.GetByEmailAsync(adminEmail);
-    if (existingAdminIdentity != null)
+    var existingAdminIdentity = !string.IsNullOrWhiteSpace(adminEmail)
+        ? await identityRepository.GetByEmailAsync(adminEmail)
+        : null;
+    if (!string.IsNullOrWhiteSpace(adminEmail) && existingAdminIdentity != null)
     {
         var adminProfile = await userRepository.GetByIdentityIdAsync(existingAdminIdentity.Id);
         if (adminProfile == null)
@@ -150,7 +164,7 @@ if (enableSwagger)
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAllPolicy");
+app.UseCors("ConfiguredOrigins");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

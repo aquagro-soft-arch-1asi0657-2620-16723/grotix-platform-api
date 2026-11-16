@@ -1,11 +1,11 @@
 # Build context: Grotix_Web_Services/
 # docker build -f src/CultivationArea.Api/Dockerfile -t grotix-cultivation-api .
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["src/CultivationArea.Api/CultivationArea.Api.csproj",                        "src/CultivationArea.Api/"]
@@ -28,5 +28,6 @@ RUN dotnet publish "src/CultivationArea.Api/CultivationArea.Api.csproj" \
 
 FROM base AS final
 WORKDIR /app
+USER $APP_UID
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "CultivationArea.Api.dll"]

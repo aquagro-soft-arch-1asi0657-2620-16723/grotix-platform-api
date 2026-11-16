@@ -1,11 +1,11 @@
 # Build context: Grotix_Web_Services/
 # docker build -f src/Telemetry.Api/Dockerfile -t grotix-telemetry-api .
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["src/Telemetry.Api/Telemetry.Api.csproj",                                         "src/Telemetry.Api/"]
@@ -30,5 +30,6 @@ RUN dotnet publish "src/Telemetry.Api/Telemetry.Api.csproj" \
 
 FROM base AS final
 WORKDIR /app
+USER $APP_UID
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "Telemetry.Api.dll"]

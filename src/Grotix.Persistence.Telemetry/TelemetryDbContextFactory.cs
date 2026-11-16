@@ -13,7 +13,7 @@ public sealed class TelemetryDbContextFactory : IDesignTimeDbContextFactory<Tele
 
         var optionsBuilder = new DbContextOptionsBuilder<TelemetryDbContext>();
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__TelemetryTimescale")
-            ?? "Host=localhost;Port=5432;Database=grotix_telemetry;Username=postgres;Password=CHANGE_ME;";
+            ?? throw new InvalidOperationException("Configure the database connection string in environment variables.");
 
         optionsBuilder.UseNpgsql(
             connectionString,

@@ -1,12 +1,19 @@
-# RabbitMQ con plugin de management (UI en http://localhost:15672 — guest/guest).
-# Uso: docker compose -f docker-compose.rabbitmq.yml up -d
-
+# Broker de laboratorio. No exponer AMQP/Management al exterior.
 services:
   rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+    image: rabbitmq:4-management-alpine
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+    restart: unless-stopped
+volumes:
+  rabbitmq_data:
