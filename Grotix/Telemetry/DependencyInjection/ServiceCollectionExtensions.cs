@@ -13,6 +13,8 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.Configure<AlertEvaluationOptions>(configuration.GetSection(AlertEvaluationOptions.SectionName));
+        services.Configure<SensorCalibrationOptions>(configuration.GetSection(SensorCalibrationOptions.SectionName));
+        services.Configure<HumidityScaleOptions>(configuration.GetSection(HumidityScaleOptions.SectionName));
 
         services.AddScoped<IZoneAuthorizationService, ZoneAuthorizationService>();
         services.AddScoped<IEffectiveThresholdResolver, EffectiveThresholdResolver>();
