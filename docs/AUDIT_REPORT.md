@@ -1,3 +1,5 @@
+> **ACTUALIZACIÓN 16/11/2026:** Ver [VALIDATION_STATUS.md](VALIDATION_STATUS.md). El equipo ejecutó desde Windows 115/115 pruebas, migraciones, Gateway y CRUD. La sección original “Aún no verificado” se refiere a la auditoría inicial, no a la validación posterior; Azure permanece sin desplegar.
+
 # Auditoría del backend Grotix — 15 noviembre 2026
 
 ## Hallazgos del ZIP entregado

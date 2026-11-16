@@ -20,7 +20,7 @@ public class CultivationAreaSteps
     [When(@"el usuario crea una zona para el cultivo (.*) en las coordenadas (.*) y (.*)")]
     public void WhenElUsuarioCreaUnaZona(int cropId, double lat, double lng)
     {
-        _zone = new Zone(_farmId, cropId, lat, lng);
+        _zone = new Zone(_farmId, cropId, "Zona de prueba", lat, lng);
     }
 
     [Then(@"el sistema debe guardar la zona exitosamente en la granja (.*)")]
@@ -40,7 +40,7 @@ public class CultivationAreaSteps
     [Given(@"una zona de cultivo registrada con la especie (.*)")]
     public void GivenUnaZonaRegistradaConLaEspecie(int cropId)
     {
-        _zone = new Zone(1, cropId, 10.0, 10.0);
+        _zone = new Zone(1, cropId, "Zona de prueba", 10.0, 10.0);
     }
 
     [When(@"el usuario modifica la zona para sembrar la especie (.*)")]
@@ -59,7 +59,7 @@ public class CultivationAreaSteps
     [Given(@"una zona de cultivo en fase ""(.*)""")]
     public void GivenUnaZonaEnFase(string phase)
     {
-        _zone = new Zone(1, 2, 10.0, 10.0, phase, DateTime.UtcNow);
+        _zone = new Zone(1, 2, "Zona de prueba", 10.0, 10.0, phase, DateTime.UtcNow);
     }
 
     [When(@"el usuario actualiza la fase a ""(.*)""")]

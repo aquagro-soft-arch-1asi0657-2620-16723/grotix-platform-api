@@ -90,11 +90,11 @@ public class CultivationControllerTests
         // Arrange
         var mockZoneQuery = new Mock<IZoneQueryService>();
         mockZoneQuery.Setup(q => q.Handle(It.IsAny<GrotixBackend.CultivationArea.Domain.Model.Queries.GetZoneByIdQuery>()))
-                     .ReturnsAsync(new Zone(1, 2, 10.0, -10.0));
+                     .ReturnsAsync(new Zone(1, 2, "Zona existente", 10.0, -10.0));
 
         var mockZoneCommand = new Mock<IZoneCommandService>();
         mockZoneCommand.Setup(c => c.Handle(It.IsAny<UpdateZoneCommand>()))
-                       .ReturnsAsync(new Zone(1, 2, 20.0, -20.0));
+                       .ReturnsAsync(new Zone(1, 2, "Zona actualizada", 20.0, -20.0));
 
         var mockAccess = new Mock<IUserAccessContextService>();
         mockAccess.Setup(a => a.GetByIdentityIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -114,7 +114,7 @@ public class CultivationControllerTests
             HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Role, "admin"), new Claim(ClaimTypes.NameIdentifier, "100") }, "TestAuth", ClaimTypes.NameIdentifier, ClaimTypes.Role)) }
         };
 
-        var request = new ZonesController.PatchZoneRequest(null, 20.0, -20.0, null, null, null);
+        var request = new ZonesController.PatchZoneRequest(null, null, 20.0, -20.0, null, null, null, null);
 
         // Act
         var result = await controller.Patch(1, request);

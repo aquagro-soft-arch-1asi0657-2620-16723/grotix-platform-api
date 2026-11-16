@@ -496,3 +496,7 @@ $RECYCLE.BIN/
 *.p12
 *.pubxml
 *.zip
+# Deployment secrets, database dumps and temporary migration snapshot backups
+backups/
+**/*.cs.bak
+**/*.bak

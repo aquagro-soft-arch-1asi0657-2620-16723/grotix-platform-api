@@ -18,18 +18,12 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Static deployment validation
         run: python3 scripts/validate_deployment.py
-      - name: Validate Compose interpolation and syntax
-        env:
-          JWT_SECRET: CI_ONLY_NOT_FOR_DEPLOYMENT_EXAMPLE_1234567890
-          CORS_ALLOWED_ORIGIN: https://example.com
-          MYSQL_HOST: example.com
-          MYSQL_USER: ci
-          MYSQL_PASSWORD: fake-ci-password
-          POSTGRES_HOST: example.com
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: fake-ci-password
-          GROTIX_DOMAIN: api.example.com
-        run: docker compose config -q
+      - name: Generate CI-only throwaway environment
+        run: bash scripts/init-env.sh local
+      - name: Validate base and local/Azure migration Compose
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.databases.yml -f docker-compose.migrations.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.migrations.yml config --quiet
       - name: Restore
         run: dotnet restore Grotix-backend.sln
       - name: Build

@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace GrotixBackend.HardwareDevice.Domain.Model.Aggregates;
 
 /// <summary>Dispositivo edge (tabla <c>microcontroller</c>).</summary>
@@ -19,11 +21,10 @@ public class Microcontroller
     {
         if (string.IsNullOrWhiteSpace(model))
             throw new ArgumentException("Model no puede estar vacío.");
-        if (string.IsNullOrWhiteSpace(macAddress))
-            throw new ArgumentException("MacAddress no puede estar vacío.");
+        var normalizedMacAddress = NormalizeMacAddress(macAddress);
 
         Model = model.Trim();
-        MacAddress = macAddress.Trim().ToUpperInvariant();
+        MacAddress = normalizedMacAddress;
         ZoneId = zoneId;
         Status = ValueObjects.DeviceStatuses.Offline;
         CreatedAt = DateTime.UtcNow;
@@ -34,9 +35,22 @@ public class Microcontroller
         if (!string.IsNullOrWhiteSpace(model))
             Model = model.Trim();
         if (!string.IsNullOrWhiteSpace(macAddress))
-            MacAddress = macAddress.Trim().ToUpperInvariant();
+            MacAddress = NormalizeMacAddress(macAddress);
         if (zoneId.HasValue)
             ZoneId = zoneId;
+    }
+
+    /// <summary>Accepts EUI-48 addresses written as six hexadecimal octets separated by colons.</summary>
+    private static string NormalizeMacAddress(string macAddress)
+    {
+        if (string.IsNullOrWhiteSpace(macAddress))
+            throw new ArgumentException("MacAddress no puede estar vacío.", nameof(macAddress));
+
+        var normalized = macAddress.Trim().ToUpperInvariant();
+        if (!Regex.IsMatch(normalized, @"\A(?:[0-9A-F]{2}:){5}[0-9A-F]{2}\z", RegexOptions.CultureInvariant))
+            throw new ArgumentException("MacAddress debe contener seis pares hexadecimales separados por ':'.", nameof(macAddress));
+
+        return normalized;
     }
 
     public void LinkToZone(int zoneId)

@@ -33,7 +33,7 @@ public class MaintenanceControllerTests
 
             mockDeviceQuery.Setup(d => d.GetDetailAsync(1))
                         .ReturnsAsync(new DeviceDetail(
-                            new Microcontroller("ESP", "MAC", 1),
+                            new Microcontroller("ESP", "02:00:00:00:00:06", 1),
                             new List<DeviceSensor>(),
                             new List<DeviceActuator>()
                         ));

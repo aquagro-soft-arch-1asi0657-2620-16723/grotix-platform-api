@@ -17,3 +17,7 @@
 **/.publish
 **/*.zip
 **/*.log
+# Deployment secrets, database dumps and temporary migration snapshot backups
+backups/
+**/*.cs.bak
+**/*.bak

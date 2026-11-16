@@ -1,0 +1,18 @@
+# Temporary EF Core 9 migration runner with .NET 10 SDK, no dotnet installed on host.
+# Use with docker-compose.yml, plus docker-compose.databases.yml for self-hosted DB.
+# NEVER run `apply` without backup and checking the target DB. No API service uses this image.
+services:
+  migrator:
+    profiles: [migrations]
+    build:
+      context: .
+      dockerfile: deploy/migrator/Dockerfile
+    image: grotix-migrator:local
+    env_file:
+      - .env
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=${MYSQL_HOST:?Set MYSQL_HOST};Port=${MYSQL_PORT:-3306};Database=${MYSQL_DB:-grotix_core};User=${MYSQL_USER:?Set MYSQL_USER};Password=${MYSQL_PASSWORD:?Set MYSQL_PASSWORD};SslMode=${MYSQL_SSL_MODE:-Required};"
+      ConnectionStrings__TelemetryTimescale: "Host=${POSTGRES_HOST:?Set POSTGRES_HOST};Port=${POSTGRES_PORT:-5432};Database=${POSTGRES_DB:-grotix_telemetry};Username=${POSTGRES_USER:?Set POSTGRES_USER};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD};SSL Mode=${POSTGRES_SSL_MODE:-VerifyFull};Trust Server Certificate=${POSTGRES_TRUST_SERVER_CERTIFICATE:-false};"
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true

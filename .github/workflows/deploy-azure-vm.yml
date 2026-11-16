@@ -3,18 +3,18 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'GHCR release tag to deploy (vX.Y.Z)'
+        description: 'Previously published GHCR release tag (vX.Y.Z)'
         required: true
         type: string
 permissions:
   contents: read
 jobs:
   deploy:
-    name: Deploy approved release over SSH
+    name: Deploy release via SSH
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Validate tag and configure SSH
+      - name: Validate release and prepare SSH identity
         shell: bash
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
@@ -22,12 +22,13 @@ jobs:
           SSH_HOST_KEYS: ${{ secrets.AZURE_VM_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          [[ "$IMAGE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-][0-9A-Za-z.-]+)?$ ]] || exit 1
+          [[ "$IMAGE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || exit 1
+          test -n "$SSH_KEY" && test -n "$SSH_HOST_KEYS"
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           printf '%s\n' "$SSH_HOST_KEYS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
-      - name: Pull and restart backend on Azure VM
+      - name: Deploy approved images without auto-migration
         shell: bash
         env:
           VM_HOST: ${{ secrets.AZURE_VM_HOST }}
@@ -36,7 +37,9 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           set -euo pipefail
+          test -n "$VM_HOST" && test -n "$VM_USER" && test -n "$VM_PATH"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          printf -v cmd 'cd %q && IMAGE_PREFIX=%q IMAGE_TAG=%q docker compose --profile public pull && IMAGE_PREFIX=%q IMAGE_TAG=%q docker compose --profile public up -d --no-build && IMAGE_PREFIX=%q IMAGE_TAG=%q docker compose ps && for attempt in 1 2 3 4 5 6 7 8 9 10; do curl --fail --silent --show-error http://127.0.0.1:5100/live >/dev/null && curl --fail --silent --show-error http://127.0.0.1:5100/ready/core >/dev/null && curl --fail --silent --show-error http://127.0.0.1:5100/ready/telemetry >/dev/null && exit 0; sleep 3; done; exit 1' \
-            "$VM_PATH" "ghcr.io/$owner/grotix-" "$IMAGE_TAG" "ghcr.io/$owner/grotix-" "$IMAGE_TAG" "ghcr.io/$owner/grotix-" "$IMAGE_TAG"
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$VM_USER@$VM_HOST" "$cmd"
+          prefix="ghcr.io/${owner}/grotix-"
+          printf -v cmd 'cd %q && bash scripts/deploy-release.sh %q %q' "$VM_PATH" "$prefix" "$IMAGE_TAG"
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+             "$VM_USER@$VM_HOST" "$cmd"

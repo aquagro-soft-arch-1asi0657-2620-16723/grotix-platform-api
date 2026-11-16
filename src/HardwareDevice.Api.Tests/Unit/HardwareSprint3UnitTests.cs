@@ -1,5 +1,6 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using GrotixBackend.HardwareDevice.Application.Internal;
+using GrotixBackend.HardwareDevice.Application.ACL;
 using GrotixBackend.HardwareDevice.Domain.Model.Aggregates;
 using GrotixBackend.HardwareDevice.Domain.Repositories;
 using Moq;
@@ -80,6 +81,8 @@ public class HardwareSprint3UnitTests
         var mockLogRepo = new Mock<IMaintenanceLogRepository>();
         var mockTechRepo = new Mock<ITechnicalMaintenanceRepository>();
         var mockUow = new Mock<IHardwareDeviceUnitOfWork>();
+        var mockStaff = new Mock<IStaffExistenceService>();
+        mockStaff.Setup(s => s.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var existingDevice = new Microcontroller("ESP32", "00:1A:2B:3C:4D:5E", 3);
         mockDeviceRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(existingDevice);
@@ -88,6 +91,7 @@ public class HardwareSprint3UnitTests
             mockDeviceRepo.Object,
             mockLogRepo.Object,
             mockTechRepo.Object,
+            mockStaff.Object,
             mockUow.Object);
 
         // Act
@@ -106,6 +110,8 @@ public class HardwareSprint3UnitTests
         var mockLogRepo = new Mock<IMaintenanceLogRepository>();
         var mockTechRepo = new Mock<ITechnicalMaintenanceRepository>();
         var mockUow = new Mock<IHardwareDeviceUnitOfWork>();
+        var mockStaff = new Mock<IStaffExistenceService>();
+        mockStaff.Setup(s => s.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var existingDevice = new Microcontroller("ESP32", "00:1A:2B:3C:4D:5E", 3);
         mockDeviceRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(existingDevice);
@@ -114,6 +120,7 @@ public class HardwareSprint3UnitTests
             mockDeviceRepo.Object,
             mockLogRepo.Object,
             mockTechRepo.Object,
+            mockStaff.Object,
             mockUow.Object);
 
         // Act

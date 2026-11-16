@@ -110,7 +110,8 @@ public class IrrigationDomainAndServiceTests
             mockZoneAccess.Object,
             new Mock<IIrrigationContextService>().Object,
             new Mock<IActuatorControlService>().Object,
-            new Mock<IIrrigationCompletedPublisher>().Object);
+            new Mock<IIrrigationCompletedPublisher>().Object,
+            new Mock<IIrrigationStartedPublisher>().Object);
 
         // Act
         Func<Task> act = async () => await service.StartManualAsync(99, 50, 10);

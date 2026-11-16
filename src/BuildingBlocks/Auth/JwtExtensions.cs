@@ -10,7 +10,7 @@ public static class JwtExtensions
 {
     public static IServiceCollection AddGrotixJwt(this IServiceCollection services, IConfiguration configuration)
     {
-        var secret = configuration["TokenSettings:Secret"];
+        var secret = configuration["TokenSettings:Secret"] ?? configuration["JWT_SECRET"];
         if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32 || secret.Contains("REPLACE_ME", StringComparison.OrdinalIgnoreCase) ||
             secret.Contains("EstaEsUnaClaveSuperSecreta", StringComparison.OrdinalIgnoreCase) || secret.Any(c => c > 127))
             throw new InvalidOperationException(

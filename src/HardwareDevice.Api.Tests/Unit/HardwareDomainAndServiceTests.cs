@@ -1,5 +1,6 @@
 using FluentAssertions;
 using GrotixBackend.HardwareDevice.Application.Internal;
+using GrotixBackend.HardwareDevice.Application.ACL;
 using GrotixBackend.HardwareDevice.Domain.Model.Aggregates;
 using GrotixBackend.HardwareDevice.Domain.Model.Entities;
 using GrotixBackend.HardwareDevice.Domain.Repositories;
@@ -35,7 +36,7 @@ public class HardwareDomainAndServiceTests
     public void MicrocontrollerConstructor_EmptyMac_ThrowsArgumentException()
     {
         Action act = () => new Microcontroller("ESP32", "", 1);
-        act.Should().Throw<ArgumentException>().WithMessage("MacAddress no puede estar vacío.");
+        act.Should().Throw<ArgumentException>().WithMessage("MacAddress no puede estar vacío.*");
     }
 
     [Fact]
@@ -49,7 +50,7 @@ public class HardwareDomainAndServiceTests
     [Fact]
     public void LinkToZone_InvalidZoneId_ThrowsArgumentException()
     {
-        var device = new Microcontroller("ESP32", "MAC", null);
+        var device = new Microcontroller("ESP32", "02:00:00:00:00:04", null);
         Action act = () => device.LinkToZone(0);
         act.Should().Throw<ArgumentException>().WithMessage("ZoneId inválido.");
     }
@@ -86,6 +87,7 @@ public class HardwareDomainAndServiceTests
             mockRepo.Object, 
             new Mock<IMaintenanceLogRepository>().Object, 
             new Mock<ITechnicalMaintenanceRepository>().Object, 
+            new Mock<IStaffExistenceService>().Object,
             new Mock<IHardwareDeviceUnitOfWork>().Object);
 
         Func<Task> act = async () => await service.RecordMaintenanceLogAsync(1, 10, "Reinicio", "ONLINE");
@@ -96,12 +98,16 @@ public class HardwareDomainAndServiceTests
     public async Task RecordTechnicalMaintenanceAsync_ValidRequest_ReturnsRecord()
     {
         var mockRepo = new Mock<IMicrocontrollerRepository>();
-        mockRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(new Microcontroller("ESP", "MAC"));
+        mockRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(new Microcontroller("ESP", "02:00:00:00:00:05"));
+
+        var mockStaff = new Mock<IStaffExistenceService>();
+        mockStaff.Setup(s => s.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var service = new MaintenanceService(
-            mockRepo.Object, 
-            new Mock<IMaintenanceLogRepository>().Object, 
-            new Mock<ITechnicalMaintenanceRepository>().Object, 
+            mockRepo.Object,
+            new Mock<IMaintenanceLogRepository>().Object,
+            new Mock<ITechnicalMaintenanceRepository>().Object,
+            mockStaff.Object,
             new Mock<IHardwareDeviceUnitOfWork>().Object);
 
         var result = await service.RecordTechnicalMaintenanceAsync(10, 1, "Correctivo", "Cambio bateria", "Exito");
@@ -119,6 +125,7 @@ public class HardwareDomainAndServiceTests
             new Mock<IMicrocontrollerRepository>().Object, 
             mockLogRepo.Object, 
             new Mock<ITechnicalMaintenanceRepository>().Object, 
+            new Mock<IStaffExistenceService>().Object,
             new Mock<IHardwareDeviceUnitOfWork>().Object);
 
         await service.ListMaintenanceLogsAsync(1, 10);

@@ -15,7 +15,7 @@ public class HardwareSteps
     [Given(@"un dispositivo ESP32 registrado y activo")]
     public void GivenUnDispositivoRegistrado()
     {
-        _device = new Microcontroller("ESP32", "MAC_ADDRESS", 1);
+        _device = new Microcontroller("ESP32", "02:00:00:00:00:01", 1);
         _device.UpdateStatus("ACTIVE");
     }
 
@@ -42,7 +42,7 @@ public class HardwareSteps
     [Given(@"un dispositivo en revision")]
     public void GivenUnDispositivoEnRevision()
     {
-        _device = new Microcontroller("ESP32", "MAC_ADDRESS", 1);
+        _device = new Microcontroller("ESP32", "02:00:00:00:00:02", 1);
     }
 
     [When(@"el tecnico completa la bitacora con la descripcion ""(.*)""")]
@@ -68,7 +68,7 @@ public class HardwareSteps
     [Given(@"un dispositivo asignado a la zona (.*)")]
     public void GivenDispositivoAsignadoAZona(int zoneId)
     {
-        _device = new Microcontroller("ESP32", "MAC", zoneId);
+        _device = new Microcontroller("ESP32", "02:00:00:00:00:03", zoneId);
     }
 
     [When(@"el administrador ejecuta la desvinculacion")]
